@@ -2,7 +2,7 @@
   "name": "Tawzia",
   "short_name": "Tawzia",
   "description": "نظام المخزون والمبيعات",
-  "start_url": "/home.html",
+  "start_url": "home.html",
   "display": "standalone",
   "background_color": "#0d1117",
   "theme_color": "#c0392b",
