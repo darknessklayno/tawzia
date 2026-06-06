@@ -183,13 +183,13 @@ body{background:#0d1117;color:#e6edf3;font-family:'Segoe UI',Tahoma,sans-serif;d
 <script>
 var _SP='9801';
 // check session
-if(sessionStorage.getItem('seller_auth')==='1'){
+if(localStorage.getItem('seller_auth')==='1'){
   document.getElementById('seller-pass-screen').style.display='none';
 }
 function chkSellerPass(){
   var v=document.getElementById('seller-pass-inp').value;
   if(v===_SP){
-    sessionStorage.setItem('seller_auth','1');
+    localStorage.setItem('seller_auth','1');
     document.getElementById('seller-pass-screen').style.display='none';
   } else {
     document.getElementById('seller-pass-err').style.display='block';
