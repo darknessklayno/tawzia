@@ -156,6 +156,9 @@ body{background:#0d1117;color:#e6edf3;font-family:'Segoe UI',Tahoma,sans-serif;d
 .debt-amount{font-size:15px;font-weight:700;color:#e67e22;text-align:left;white-space:nowrap}
 .debt-actions{display:flex;gap:5px;flex-shrink:0}
 @media(max-width:600px){.tab{flex:0 0 auto;min-width:70px;font-size:11px}}
+.confirm-paid-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:300;align-items:center;justify-content:center;padding:1rem}
+.confirm-paid-overlay.open{display:flex}
+.confirm-paid-box{background:#161b22;border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:1.75rem;width:100%;max-width:320px;text-align:center}
 </style>
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#c0392b">
@@ -906,21 +909,31 @@ function renderDebts(){
     '</div>';
   }).join('');
 }
+var _adminPayIdx = null;
 function markPaid(i){
+  var d=S.debts[i];
+  _adminPayIdx = i;
+  document.getElementById('admin-pay-msg').textContent =
+    'الزبون: ' + d.customer + ' | المبلغ: ' + d.amount.toFixed(3) + ' ر.ع';
+  document.getElementById('admin-pay-ov').classList.add('open');
+}
+function adminPayYes(){
+  document.getElementById('admin-pay-ov').classList.remove('open');
+  if(_adminPayIdx===null) return;
+  var i=_adminPayIdx; _adminPayIdx=null;
   var d=S.debts[i];
   d.paid=true;
   d.paidDate=new Date().toLocaleString('ar-SA');
-  // match by saleId first, fallback to time/amount
   S.sales.forEach(function(s){
     var match = (d.saleId && s.saleId && d.saleId===s.saleId) ||
-                (d.time && s.time && d.time===s.time) ||
-                (Math.abs(s.revenue-d.amount)<0.001 && s.time===d.time);
-    if(match && !s.paid){
-      s.paid=true;
-      s.paidDate=d.paidDate;
-    }
+                (d.time && s.time && d.time===s.time);
+    if(match && !s.paid){ s.paid=true; s.paidDate=d.paidDate; }
   });
   save();render();toast('✅ تم الدفع بنجاح');
+}
+function adminPayNo(){
+  document.getElementById('admin-pay-ov').classList.remove('open');
+  _adminPayIdx=null;
 }
 function editDebt(i){
   var d=S.debts[i];

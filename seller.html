@@ -161,9 +161,43 @@ body{background:#0d1117;color:#e6edf3;font-family:'Segoe UI',Tahoma,sans-serif;d
 .log-row{padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;justify-content:space-between;align-items:center}
 .log-row:last-child{border-bottom:none}
 @media(max-width:600px){.tab{flex:0 0 auto;min-width:70px;font-size:11px}}
+.confirm-paid-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:300;align-items:center;justify-content:center;padding:1rem}
+.confirm-paid-overlay.open{display:flex}
+.confirm-paid-box{background:#161b22;border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:1.75rem;width:100%;max-width:320px;text-align:center}
 </style>
 </head>
 <body>
+
+<!-- شاشة كلمة السر -->
+<div id="seller-pass-screen" style="display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:16px;padding:1rem;background:#0d1117">
+  <div style="font-size:52px">🛒</div>
+  <div style="font-size:22px;font-weight:700;color:#fff">Tawzia — بيع</div>
+  <div style="background:#161b22;border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:1.75rem;width:100%;max-width:300px">
+    <div style="font-size:13px;color:#8b949e;margin-bottom:12px;text-align:center">أدخل كلمة السر</div>
+    <input id="seller-pass-inp" type="password" placeholder="••••••••" style="width:100%;padding:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#fff;font-size:18px;text-align:center;direction:ltr;letter-spacing:6px;outline:none;margin-bottom:10px" onkeydown="if(event.key==='Enter')chkSellerPass()">
+    <button onclick="chkSellerPass()" style="width:100%;padding:12px;background:#2980b9;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">دخول</button>
+    <div id="seller-pass-err" style="color:#c0392b;font-size:12px;text-align:center;margin-top:8px;display:none">❌ كلمة السر غلط</div>
+  </div>
+  <a href="home.html" style="font-size:12px;color:#8b949e;text-decoration:none">← الرجوع للرئيسية</a>
+</div>
+<script>
+var _SP='9801';
+// check session
+if(sessionStorage.getItem('seller_auth')==='1'){
+  document.getElementById('seller-pass-screen').style.display='none';
+}
+function chkSellerPass(){
+  var v=document.getElementById('seller-pass-inp').value;
+  if(v===_SP){
+    sessionStorage.setItem('seller_auth','1');
+    document.getElementById('seller-pass-screen').style.display='none';
+  } else {
+    document.getElementById('seller-pass-err').style.display='block';
+    document.getElementById('seller-pass-inp').value='';
+    document.getElementById('seller-pass-inp').focus();
+  }
+}
+</script>
 
 <div id="loading-screen" style="display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:16px">
   <div style="font-size:48px">🏪</div>
@@ -222,6 +256,19 @@ body{background:#0d1117;color:#e6edf3;font-family:'Segoe UI',Tahoma,sans-serif;d
     </div>
   </div>
 </div>
+</div>
+
+<!-- نافذة تأكيد الدفع -->
+<div class="confirm-paid-overlay" id="pay-confirm-ov">
+  <div class="confirm-paid-box">
+    <div style="font-size:44px;margin-bottom:12px">💰</div>
+    <div style="font-size:17px;font-weight:700;color:#fff;margin-bottom:6px">تأكيد استلام الدفع</div>
+    <div id="pay-confirm-msg" style="font-size:13px;color:#8b949e;margin-bottom:20px"></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="confirmPayYes()" style="flex:1;padding:12px;background:#27ae60;color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:600;cursor:pointer">✅ تأكيد</button>
+      <button onclick="confirmPayNo()" style="flex:1;padding:12px;background:rgba(255,255,255,.07);color:#ccc;border:none;border-radius:9px;font-size:14px;cursor:pointer">إلغاء</button>
+    </div>
+  </div>
 </div>
 
 <div class="modal-overlay" id="modal"><div class="modal-box" id="mc"></div></div>
@@ -482,18 +529,31 @@ function renderDebt(){
   }).join('');
 }
 
+var _pendingPayIdx = null;
 function sellerMarkPaid(i){
-  if(!confirm('تأكيد استلام الدفع؟'))return;
+  var d = S.debts[i];
+  _pendingPayIdx = i;
+  document.getElementById('pay-confirm-msg').textContent = 
+    'الزبون: ' + d.customer + ' | المبلغ: ' + d.amount.toFixed(3) + ' ر.ع';
+  document.getElementById('pay-confirm-ov').classList.add('open');
+}
+function confirmPayYes(){
+  document.getElementById('pay-confirm-ov').classList.remove('open');
+  if(_pendingPayIdx === null) return;
+  var i = _pendingPayIdx; _pendingPayIdx = null;
   var d = S.debts[i];
   d.paid = true;
   d.paidDate = new Date().toLocaleString('ar-SA');
-  // match by saleId or time
   S.sales.forEach(function(s){
     var match = (d.saleId && s.saleId && d.saleId===s.saleId) ||
                 (d.time && s.time && d.time===s.time);
     if(match && !s.paid){ s.paid=true; s.paidDate=d.paidDate; }
   });
   fbSave(); render(); toast('✅ تم تسجيل الدفع');
+}
+function confirmPayNo(){
+  document.getElementById('pay-confirm-ov').classList.remove('open');
+  _pendingPayIdx = null;
 }
 function render(){renderInv();renderWS();renderBundles();renderLog();renderDebt();}
 </script>
