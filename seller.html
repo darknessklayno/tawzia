@@ -52,7 +52,7 @@ function fbSave(){
       products:S.products, ws:S.ws, bundles:S.bundles,
       sales:S.sales, debts:S.debts, _ts:Date.now()
     });
-  }, 400);
+  }, 200);
 }
 
 setTimeout(function(){
@@ -428,7 +428,7 @@ function renderLog(){
       '</div>'+
       '<div style="text-align:left">'+
         '<div style="font-size:14px;font-weight:700;color:#e67e22">'+s.revenue.toFixed(3)+' ر.ع</div>'+
-        '<div>'+(s.paid===false?'<span class="badge bg-r">لم يدفع</span>':'<span class="badge bg-g">✅ تم الدفع</span>')+'</div>'+
+        '<div>'+(s.paid===false?'<span class="badge bg-r">لم يدفع</span>':s.paid===true?'<span class="badge bg-g">✅ تم الدفع</span>':'<span class="badge bg-g">✅ دفع</span>')+'</div>'+
       '</div>'+
     '</div>';
   }).join('');
@@ -436,18 +436,18 @@ function renderLog(){
 
 function renderDebt(){
   var list=document.getElementById('debt-list');
-  var unpaid=S.debts.filter(function(d){return !d.paid;});
-  if(!unpaid.length){list.innerHTML='<div style="color:#27ae60;text-align:center;padding:2rem;font-size:13px">✅ لا يوجد مستحقات</div>';return;}
-  list.innerHTML=unpaid.map(function(d,i){
-    var realIdx = S.debts.indexOf(d);
-    return '<div class="log-row">'+
+  if(!S.debts.length){list.innerHTML='<div style="color:#27ae60;text-align:center;padding:2rem;font-size:13px">✅ لا يوجد مستحقات</div>';return;}
+  list.innerHTML=S.debts.map(function(d,i){
+    return '<div class="log-row" style="'+(d.paid?'opacity:.6':'')+'">'+
       '<div style="flex:1">'+
-        '<div style="font-weight:600;font-size:14px;color:#e67e22">'+d.customer+'</div>'+
-        '<div style="font-size:11px;color:#8b949e">'+d.desc+' | '+d.time+'</div>'+
+        '<div style="font-weight:600;font-size:14px;color:'+(d.paid?'#27ae60':'#e67e22')+'">'+d.customer+
+          (d.paid?' <span class="badge bg-g">✅ دفع</span>':' <span class="badge bg-r">لم يدفع</span>')+
+        '</div>'+
+        '<div style="font-size:11px;color:#8b949e">'+d.desc+' | '+d.time+(d.paid&&d.paidDate?' | دفع: '+d.paidDate:'')+'</div>'+
       '</div>'+
       '<div style="text-align:left;display:flex;flex-direction:column;align-items:flex-end;gap:5px">'+
-        '<div style="font-size:16px;font-weight:700;color:#c0392b">'+d.amount.toFixed(3)+' ر.ع</div>'+
-        '<button class="bn bg2 bn-sm" onclick="sellerMarkPaid('+realIdx+')">✅ تم الدفع</button>'+
+        '<div style="font-size:16px;font-weight:700;color:'+(d.paid?'#27ae60':'#c0392b')+'">'+d.amount.toFixed(3)+' ر.ع</div>'+
+        (!d.paid?'<button class="bn bg2 bn-sm" onclick="sellerMarkPaid('+i+')">✅ تم الدفع</button>':'')+
       '</div>'+
     '</div>';
   }).join('');
@@ -458,11 +458,12 @@ function sellerMarkPaid(i){
   var d = S.debts[i];
   d.paid = true;
   d.paidDate = new Date().toLocaleString('ar-SA');
-  // sync with sales log
-  var match = S.sales.find(function(s){
-    return s.customer===d.customer && Math.abs(s.revenue-d.amount)<0.001 && s.paid===false;
+  // sync ALL matching sales
+  S.sales.forEach(function(s){
+    if(s.customer===d.customer && Math.abs(s.revenue-d.amount)<0.001 && s.paid===false){
+      s.paid=true; s.paidDate=d.paidDate;
+    }
   });
-  if(match){ match.paid=true; match.paidDate=d.paidDate; }
   fbSave(); render(); toast('✅ تم تسجيل الدفع');
 }
 function render(){renderInv();renderWS();renderBundles();renderLog();renderDebt();}

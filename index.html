@@ -908,14 +908,12 @@ function markPaid(i){
   var d=S.debts[i];
   d.paid=true;
   d.paidDate=new Date().toLocaleString('ar-SA');
-  // update matching sale in log
-  var matchSale=S.sales.find(function(s){
-    return s.customer===d.customer && Math.abs(s.revenue-d.amount)<0.001 && s.paid===false;
+  // update ALL matching sales in log
+  S.sales.forEach(function(s){
+    if(s.customer===d.customer && Math.abs(s.revenue-d.amount)<0.001 && s.paid===false){
+      s.paid=true; s.paidDate=d.paidDate;
+    }
   });
-  if(matchSale){
-    matchSale.paid=true;
-    matchSale.paidDate=d.paidDate;
-  }
   save();render();toast('✅ تم الدفع بنجاح');
 }
 function editDebt(i){
