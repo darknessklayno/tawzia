@@ -910,8 +910,9 @@ function markPaid(i){
   d.paidDate=new Date().toLocaleString('ar-SA');
   // update ALL matching sales in log
   S.sales.forEach(function(s){
-    if(s.customer===d.customer && Math.abs(s.revenue-d.amount)<0.001 && s.paid===false){
-      s.paid=true; s.paidDate=d.paidDate;
+    if(s.customer===d.customer && Math.abs(s.revenue-d.amount)<0.001 && !s.paid){
+      s.paid=true;
+      s.paidDate=d.paidDate;
     }
   });
   save();render();toast('✅ تم الدفع بنجاح');
@@ -976,7 +977,7 @@ function renderProfits(){
   log.innerHTML=S.sales.map(function(s,si){
     return '<div class="log-row">'+
       '<div style="flex:1">'+
-        '<div style="font-weight:500;font-size:13px">'+s.name+' <span class="badge '+(s.type==='عرض'?'bg-b':s.type==='جملة'?'bg-o':'bg-g')+'">'+s.type+'</span>'+(s.customer?' <span class="badge bg-pur">'+s.customer+'</span>':'')+(s.paid===false?' <span class="badge bg-r">لم يدفع</span>':(s.paid===true?' <span class="badge bg-g">تم الدفع</span>':''))+'</div>'+
+        '<div style="font-weight:500;font-size:13px">'+s.name+' <span class="badge '+(s.type==='عرض'?'bg-b':s.type==='جملة'?'bg-o':'bg-g')+'">'+s.type+'</span>'+(s.customer?' <span class="badge bg-pur">'+s.customer+'</span>':'')+(s.paid===false?' <span class="badge bg-r">لم يدفع</span>':s.paid===true||s.paid==='true'?'<span class="badge bg-g">✅ تم الدفع</span>':'')+'</div>'+
         '<div style="font-size:11px;color:#8b949e">'+s.qty+' × '+s.price.toFixed(3)+' ر.ع | '+s.time+'</div>'+
       '</div>'+
       '<div style="text-align:left;margin-left:8px">'+

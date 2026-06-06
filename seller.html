@@ -55,12 +55,40 @@ function fbSave(){
   }, 200);
 }
 
-setTimeout(function(){
+// retry connection automatically
+var _retryCount = 0;
+function _checkLoaded(){
   if(!_loaded){
-    var ld=document.getElementById('loading-screen');
-    if(ld)ld.innerHTML='<div style="text-align:center;padding:2rem"><div style="font-size:40px;margin-bottom:1rem">⚠️</div><div style="color:#c0392b;font-weight:600">تعذّر الاتصال</div><button onclick="location.reload()" style="margin-top:16px;padding:10px 24px;background:#c0392b;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer">إعادة المحاولة</button></div>';
+    _retryCount++;
+    if(_retryCount <= 3){
+      // retry silently
+      _dbRef.once('value', function(snap){
+        if(snap.val()){
+          _loaded = true;
+          var val = snap.val();
+          S.products = val.products||[];
+          S.ws       = val.ws||[];
+          S.bundles  = val.bundles||[];
+          S.sales    = val.sales||[];
+          S.debts    = val.debts||[];
+          var ld=document.getElementById('loading-screen');
+          if(ld)ld.style.display='none';
+          var app=document.getElementById('main-app');
+          if(app)app.style.display='block';
+          render();
+          var el=document.getElementById('sync-status');
+          if(el){el.textContent='✅ متصل';el.style.color='#27ae60';}
+        } else {
+          setTimeout(_checkLoaded, 3000);
+        }
+      });
+    } else {
+      var ld=document.getElementById('loading-screen');
+      if(ld)ld.innerHTML='<div style="text-align:center;padding:2rem"><div style="font-size:40px;margin-bottom:1rem">⚠️</div><div style="color:#c0392b;font-weight:600">تعذّر الاتصال</div><div style="font-size:12px;color:#8b949e;margin-top:8px">تأكد من الإنترنت</div><button onclick="location.reload()" style="margin-top:16px;padding:10px 24px;background:#c0392b;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer">إعادة المحاولة</button></div>';
+    }
   }
-},8000);
+}
+setTimeout(_checkLoaded, 6000);
 </script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
