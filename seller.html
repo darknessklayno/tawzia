@@ -30,6 +30,7 @@ var _saveTimer = null;
 _dbRef.on('value', function(snap){
   _loaded = true;
   var val = snap.val();
+  // دائماً خذ البيانات من Firebase - المصدر الوحيد للحقيقة
   S.products = (val&&val.products)||[];
   S.ws       = (val&&val.ws)||[];
   S.bundles  = (val&&val.bundles)||[];
@@ -51,7 +52,7 @@ function fbSave(){
       products:S.products, ws:S.ws, bundles:S.bundles,
       sales:S.sales, debts:S.debts, _ts:Date.now()
     });
-  }, 600);
+  }, 400);
 }
 
 setTimeout(function(){
