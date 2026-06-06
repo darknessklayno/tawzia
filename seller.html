@@ -289,9 +289,10 @@ function recordSale(sale, payNow){
   sale.customer = cust.trim();
   sale.paid = payNow;
   sale.paidDate = payNow ? new Date().toLocaleString('ar-SA') : '';
+  sale.saleId = sale.time; // مفتاح مطابقة فريد
   S.sales.unshift(sale);
   if(!payNow){
-    S.debts.unshift({id:Date.now(),customer:cust||'زبون غير معروف',amount:sale.revenue,desc:sale.name,time:sale.time,paid:false,paidDate:''});
+    S.debts.unshift({id:Date.now(),saleId:sale.saleId,customer:cust||'زبون غير معروف',amount:sale.revenue,desc:sale.name,time:sale.time,paid:false,paidDate:''});
   }
 }
 
@@ -486,11 +487,11 @@ function sellerMarkPaid(i){
   var d = S.debts[i];
   d.paid = true;
   d.paidDate = new Date().toLocaleString('ar-SA');
-  // sync ALL matching sales
+  // match by saleId or time
   S.sales.forEach(function(s){
-    if(s.customer===d.customer && Math.abs(s.revenue-d.amount)<0.001 && s.paid===false){
-      s.paid=true; s.paidDate=d.paidDate;
-    }
+    var match = (d.saleId && s.saleId && d.saleId===s.saleId) ||
+                (d.time && s.time && d.time===s.time);
+    if(match && !s.paid){ s.paid=true; s.paidDate=d.paidDate; }
   });
   fbSave(); render(); toast('✅ تم تسجيل الدفع');
 }

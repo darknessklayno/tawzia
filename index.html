@@ -416,10 +416,12 @@ function recordSaleAndDebt(sale,payNow){
   sale.customer=customerName.trim();
   sale.paid=payNow;
   sale.paidDate=payNow?new Date().toLocaleString('ar-SA'):'';
+  sale.saleId=sale.time; // مفتاح مطابقة فريد
   S.sales.unshift(sale);
   if(!payNow){
     S.debts.unshift({
       id:Date.now(),
+      saleId:sale.saleId, // ربط الدين بالبيع مباشرة
       customer:customerName||'زبون غير معروف',
       amount:sale.revenue,
       desc:sale.name,
@@ -908,9 +910,12 @@ function markPaid(i){
   var d=S.debts[i];
   d.paid=true;
   d.paidDate=new Date().toLocaleString('ar-SA');
-  // update ALL matching sales in log
+  // match by saleId first, fallback to time/amount
   S.sales.forEach(function(s){
-    if(s.customer===d.customer && Math.abs(s.revenue-d.amount)<0.001 && !s.paid){
+    var match = (d.saleId && s.saleId && d.saleId===s.saleId) ||
+                (d.time && s.time && d.time===s.time) ||
+                (Math.abs(s.revenue-d.amount)<0.001 && s.time===d.time);
+    if(match && !s.paid){
       s.paid=true;
       s.paidDate=d.paidDate;
     }
@@ -953,10 +958,11 @@ function saveDebtEdit(i){
   d.paidDate=paidVal?(document.getElementById('ed-pdate').value||new Date().toLocaleString('ar-SA')):'';
   // sync matching sale
   if(paidVal && wasUnpaid){
-    var matchSale=S.sales.find(function(s){
-      return s.customer===oldCustomer && Math.abs(s.revenue-d.amount)<0.001 && s.paid===false;
+    S.sales.forEach(function(s){
+      var match = (d.saleId && s.saleId && d.saleId===s.saleId) ||
+                  (d.time && s.time && d.time===s.time);
+      if(match && !s.paid){s.paid=true;s.paidDate=d.paidDate;}
     });
-    if(matchSale){matchSale.paid=true;matchSale.paidDate=d.paidDate;}
   }
   save();closeModal();render();toast('✅ تم التعديل');
 }
