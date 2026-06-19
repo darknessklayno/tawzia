@@ -45,11 +45,13 @@ _dbRef.on('value', function(snap){
   S.debts    = (val && val.debts)||[];
   var ld = document.getElementById('loading-screen');
   if(ld) ld.style.display='none';
-  var app = document.getElementById('main-app');
+  var app = document.getElementById('main-content');
   if(app) app.style.display='block';
   if(window._appRender) window._appRender();
   var el = document.getElementById('sync-status');
   if(el){el.textContent='✅ متصل';el.style.color='#27ae60';}
+  // also trigger render via _appRender if available
+  if(window._appRender && typeof window._appRender === 'function') window._appRender();
 });
 </script>
 <style>
@@ -266,6 +268,14 @@ if('serviceWorker' in navigator){
     <div id="bun-list"></div>
   </div>
 
+  <!-- الطلبات -->
+  <div id="sec-orders" class="sec">
+    <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden">
+      <div style="padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-weight:600;font-size:14px">🔔 طلبات العملاء</div>
+      <div id="orders-list" style="max-height:500px;overflow-y:auto"></div>
+    </div>
+  </div>
+
   <div id="sec-debt" class="sec">
     <div class="stats-grid" id="debt-stats"></div>
     <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden">
@@ -327,6 +337,7 @@ var S = {
   sales:    [],
   debts:    []
 };
+window._appS = S;
 var tempImg=null, confirmCb=null, debtFilter='all';
 var cart={};
 var _saveTimer=null;
@@ -377,8 +388,8 @@ function initFirebase(){
 }
 
 // ربط S و render مع Firebase
-window._appS = S;
-window._appRender = function(){ render(); };
+// _appS already set above
+window._appRender = function(){ if(typeof render==='function') render(); };
 
 // إذا ما اتحمّل Firebase بعد 8 ثوانٍ
 setTimeout(function(){
