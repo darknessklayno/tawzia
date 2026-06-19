@@ -26,9 +26,11 @@ var _dbRef = _db.ref('tawzea/data');
 var _ordersRef = _db.ref('tawzea/orders');
 var _orders = [];
 _ordersRef.on('value', function(snap){
-  var val = snap.val();
-  _orders = val ? Object.entries(val).map(function(e){var o=e[1];o._key=e[0];return o;}).reverse() : [];
-  renderOrders();
+  try{
+    var val = snap.val();
+    _orders = val ? Object.entries(val).map(function(e){var o=e[1];o._key=e[0];return o;}).sort(function(a,b){return b.id-a.id;}) : [];
+  }catch(e){_orders=[];}
+  if(window._appRender||typeof render==='function') try{renderOrders();}catch(e){}
 });
 var S = {products:[],ws:[],bundles:[],sales:[],debts:[]};
 var _loaded = false;
