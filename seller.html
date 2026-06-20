@@ -93,7 +93,7 @@ setTimeout(_checkLoaded, 6000);
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0d1117;color:#e6edf3;font-family:'Segoe UI',Tahoma,sans-serif;direction:rtl;min-height:100vh}
-.app{max-width:980px;margin:0 auto;padding:1rem}
+.app{max-width:980px;margin:0 auto;padding:1rem;padding-bottom:80px}
 .hdr{display:flex;align-items:center;gap:12px;margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1px solid rgba(255,255,255,.08);min-height:70px}
 .hdr-logo{width:46px;height:46px;border-radius:12px;overflow:hidden;flex-shrink:0}
 .hdr-logo img{width:100%;height:100%;object-fit:cover}
@@ -161,6 +161,18 @@ body{background:#0d1117;color:#e6edf3;font-family:'Segoe UI',Tahoma,sans-serif;d
 .log-row{padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;justify-content:space-between;align-items:center}
 .log-row:last-child{border-bottom:none}
 @media(max-width:600px){.tab{flex:0 0 auto;min-width:70px;font-size:11px}}
+.cart-bar{position:fixed;bottom:0;left:0;right:0;background:#161b22;border-top:1px solid rgba(255,255,255,.1);padding:10px 1rem;z-index:50;display:flex;align-items:center;gap:10px}
+.cart-count{background:#c0392b;color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
+.qty-ctrl{display:flex;align-items:center;gap:6px;justify-content:center}
+.qty-btn{width:30px;height:30px;border:none;border-radius:7px;cursor:pointer;font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;transition:.15s;line-height:1}
+.qty-btn:active{transform:scale(.9)}
+.qty-minus{background:rgba(192,57,43,.2);color:#c0392b}
+.qty-plus{background:rgba(41,128,185,.2);color:#2980b9}
+.qty-val{font-size:15px;font-weight:700;min-width:28px;text-align:center}
+.qty-val.active{color:#27ae60}
+.pc.in-cart{border-color:#27ae60!important}
+.cart-item-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.cart-item-row:last-child{border-bottom:none}
 .confirm-paid-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:300;align-items:center;justify-content:center;padding:1rem}
 .confirm-paid-overlay.open{display:flex}
 .confirm-paid-box{background:#161b22;border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:1.75rem;width:100%;max-width:320px;text-align:center}
@@ -221,6 +233,7 @@ function chkSellerPass(){
     <button class="tab active" onclick="sw('inv')">📦 المنتجات</button>
     <button class="tab" onclick="sw('ws')">🏷️ الجملة</button>
     <button class="tab" onclick="sw('bun')">🎁 العروض</button>
+    <button class="tab" onclick="sw('orders')">🔔 الطلبات</button>
     <button class="tab" onclick="sw('debt')">💳 مستحقات</button>
     <button class="tab" onclick="sw('log')">📋 السجل</button>
   </div>
@@ -238,6 +251,14 @@ function chkSellerPass(){
   <!-- العروض -->
   <div id="sec-bun" class="sec">
     <div id="bun-list"></div>
+  </div>
+
+  <!-- الطلبات -->
+  <div id="sec-orders" class="sec">
+    <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden">
+      <div style="padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-weight:600;font-size:14px">🔔 طلبات العملاء</div>
+      <div id="orders-list" style="max-height:500px;overflow-y:auto"></div>
+    </div>
   </div>
 
   <!-- المستحقات -->
@@ -278,7 +299,7 @@ function chkSellerPass(){
 var confirmCb = null;
 
 function sw(t){
-  ['inv','ws','bun','debt','log'].forEach(function(x,i){
+  ['inv','ws','bun','orders','debt','log'].forEach(function(x,i){
     document.querySelectorAll('.tab')[i].classList.toggle('active',x===t);
     document.getElementById('sec-'+x).classList.toggle('active',x===t);
   });
@@ -529,6 +550,134 @@ function renderDebt(){
   }).join('');
 }
 
+/* ===== الطلبات ===== */
+var _orders = [];
+var _ordersRef = firebase.database().ref('tawzea/orders');
+_ordersRef.on('value', function(snap){
+  try{
+    var val = snap.val();
+    if(val && typeof val === 'object' && val !== 0){
+      _orders = Object.entries(val).map(function(e){var o=e[1];o._key=e[0];return o;}).sort(function(a,b){return (b.id||0)-(a.id||0);});
+    } else {
+      _orders = [];
+    }
+  }catch(e){_orders=[];}
+  try{renderOrders();}catch(e){}
+});
+
+function renderOrders(){
+  var list=document.getElementById('orders-list');
+  if(!list)return;
+  if(!_orders.length){list.innerHTML='<div style="color:#8b949e;text-align:center;padding:2rem">لا يوجد طلبات</div>';return;}
+  var pending=_orders.filter(function(o){return o.status==='pending';});
+  list.innerHTML=_orders.map(function(o){
+    var isPending=o.status==='pending';
+    var itHtml=(o.items||[]).map(function(it){return '<div style="font-size:11px;color:#8b949e;padding:2px 0">• '+it.name+' × '+it.qty+' — '+it.total.toFixed(3)+' ر.ع</div>';}).join('');
+    return '<div style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.05);'+(isPending?'':'opacity:.55')+'">'+
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">'+
+        '<div>'+
+          '<div style="font-weight:600;font-size:14px">'+o.name+(o.phone?' — '+o.phone:'')+' <span class="badge '+(isPending?'bg-o':'bg-g')+'">'+(isPending?'جديد':'تم')+'</span></div>'+
+          '<div style="font-size:11px;color:#8b949e">'+o.time+'</div>'+
+          (o.note?'<div style="font-size:11px;color:#e67e22;margin-top:2px">📝 '+o.note+'</div>':'')+
+        '</div>'+
+        '<div style="font-size:16px;font-weight:700;color:#e67e22">'+o.total.toFixed(3)+' ر.ع</div>'+
+      '</div>'+
+      itHtml+
+      (isPending?'<div style="display:flex;gap:6px;margin-top:8px">'+
+        '<button class="bn bg2 bn-sm" onclick="acceptOrd(''+o._key+'')">✅ قبول</button>'+
+        '<button class="bn br bn-sm" onclick="rejectOrd(''+o._key+'')">❌ رفض</button>'+
+      '</div>':'')+
+    '</div>';
+  }).join('');
+  // badge on tab
+  var tabs=document.querySelectorAll('.tab');
+  tabs.forEach(function(t){if(t.textContent.includes('الطلبات')){t.textContent=pending.length>0?'🔔 الطلبات ('+pending.length+')':'🔔 الطلبات';}});
+}
+
+function acceptOrd(key){ _db.ref('tawzea/orders/'+key+'/status').set('accepted'); }
+function rejectOrd(key){ _db.ref('tawzea/orders/'+key+'/status').set('rejected'); }
+
+/* ===== سلة البيع ===== */
+var cart = {};
+
+function chgCart(key,idx,type,delta){
+  var maxQ=9999;
+  if(type==='p'){var p=S.products[idx];if(p)maxQ=p.qty;}
+  var cur=cart[key]||0;
+  var nq=Math.max(0,Math.min(cur+delta,maxQ));
+  if(nq===0)delete cart[key]; else cart[key]=nq;
+  updSCartBar(); render();
+}
+
+function getSCartItems(){
+  var items=[];
+  Object.keys(cart).forEach(function(key){
+    var qty=cart[key]; if(!qty)return;
+    var parts=key.split('-'),type=parts[0],idx=parseInt(parts[1]);
+    if(type==='p'){
+      var p=S.products[idx]; if(!p)return;
+      var uc=p.costTotal/p.totalUnits;
+      items.push({key:key,name:p.name,qty:qty,price:p.sellPrice,uc:uc,total:qty*p.sellPrice,profit:qty*(p.sellPrice-uc),unit:p.unit,type:'مفرد',prodIdx:idx});
+    }
+  });
+  return items;
+}
+
+function updSCartBar(){
+  var items=getSCartItems();
+  var count=items.reduce(function(s,i){return s+i.qty;},0);
+  var total=items.reduce(function(s,i){return s+i.total;},0);
+  var bar=document.getElementById('s-cart-bar');
+  if(bar)bar.style.display=count>0?'flex':'none';
+  var cc=document.getElementById('s-cart-count');if(cc)cc.textContent=count;
+  var ct=document.getElementById('s-cart-total');if(ct)ct.textContent=total.toFixed(3)+' ر.ع';
+}
+
+function openSCart(){
+  document.getElementById('s-cart-modal').classList.add('open');
+  var items=getSCartItems();
+  var total=items.reduce(function(s,i){return s+i.total;},0);
+  var html=items.map(function(it){
+    return '<div class="cart-item-row">'+
+      '<div style="flex:1"><div style="font-weight:500;font-size:13px">'+it.name+'</div>'+
+      '<div style="font-size:11px;color:#8b949e">'+it.qty+' '+it.unit+' × '+it.price.toFixed(3)+' ر.ع</div></div>'+
+      '<div style="display:flex;align-items:center;gap:8px">'+
+        '<span style="color:#e67e22;font-weight:700">'+it.total.toFixed(3)+'</span>'+
+        '<button onclick="rmSCartItem(''+it.key+'')" style="background:rgba(192,57,43,.2);color:#c0392b;border:none;border-radius:5px;padding:3px 7px;cursor:pointer">✕</button>'+
+      '</div></div>';
+  }).join('');
+  document.getElementById('s-cart-items').innerHTML=html||'<div style="color:#8b949e;text-align:center;padding:1rem">السلة فارغة</div>';
+  document.getElementById('s-cart-modal-total').textContent=total.toFixed(3)+' ر.ع';
+}
+
+function rmSCartItem(key){delete cart[key];updSCartBar();openSCart();render();}
+function clearSCart(){cart={};updSCartBar();document.getElementById('s-cart-modal').classList.remove('open');render();}
+
+function checkoutSCart(){
+  var items=getSCartItems();
+  if(!items.length){toast('السلة فارغة',false);return;}
+  for(var i=0;i<items.length;i++){
+    var p=S.products[items[i].prodIdx];
+    if(p&&items[i].qty>p.qty){toast('مخزون غير كافٍ: '+p.name,false);return;}
+  }
+  var total=items.reduce(function(s,i){return s+i.total;},0);
+  var profit=items.reduce(function(s,i){return s+i.profit;},0);
+  showConfirm({
+    title:'تأكيد البيع',
+    items:items.map(function(it){return{label:it.name,val:it.qty+' '+it.unit+' = '+it.total.toFixed(3)+' ر.ع'};}),
+    total:total
+  },function(payNow){
+    var now=new Date().toLocaleString('ar-SA');
+    items.forEach(function(it){
+      S.products[it.prodIdx].qty-=it.qty;
+      recordSale({type:it.type,name:it.name,qty:it.qty,price:it.price,cost:it.uc,revenue:it.total,profit:it.profit,time:now,saleId:now+Math.random()},payNow);
+    });
+    cart={};
+    fbSave();updSCartBar();document.getElementById('s-cart-modal').classList.remove('open');render();
+    toast('✅ تم البيع بنجاح');
+  });
+}
+
 var _pendingPayIdx = null;
 function sellerMarkPaid(i){
   var d = S.debts[i];
@@ -555,7 +704,7 @@ function confirmPayNo(){
   document.getElementById('pay-confirm-ov').classList.remove('open');
   _pendingPayIdx = null;
 }
-function render(){renderInv();renderWS();renderBundles();renderLog();renderDebt();}
+function render(){renderInv();renderWS();renderBundles();renderLog();renderDebt();renderOrders();}
 </script>
 </body>
 </html>
