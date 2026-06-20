@@ -23,19 +23,9 @@ var firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 var _db = firebase.database();
 var _dbRef = _db.ref('tawzea/data');
-var _ordersRef = _db.ref('tawzea/orders');
-var _orders = [];
-_ordersRef.on('value', function(snap){
-  try{
-    var val = snap.val();
-    _orders = val ? Object.entries(val).map(function(e){var o=e[1];o._key=e[0];return o;}).sort(function(a,b){return b.id-a.id;}) : [];
-  }catch(e){_orders=[];}
-  if(window._appRender||typeof render==='function') try{renderOrders();}catch(e){}
-});
 var S = {products:[],ws:[],bundles:[],sales:[],debts:[]};
 var _loaded = false;
 var _saveTimer = null;
-var cart = {};
 
 _dbRef.on('value', function(snap){
   _loaded = true;
@@ -46,7 +36,6 @@ _dbRef.on('value', function(snap){
   S.bundles  = (val&&val.bundles)||[];
   S.sales    = (val&&val.sales)||[];
   S.debts    = (val&&val.debts)||[];
-  S.orders   = (val&&val.orders)||[];
   var ld = document.getElementById('loading-screen');
   if(ld) ld.style.display='none';
   var app = document.getElementById('main-app');
@@ -61,7 +50,7 @@ function fbSave(){
   _saveTimer = setTimeout(function(){
     _dbRef.set({
       products:S.products, ws:S.ws, bundles:S.bundles,
-      sales:S.sales, debts:S.debts, orders:S.orders||[], _ts:Date.now()
+      sales:S.sales, debts:S.debts, _ts:Date.now()
     });
   }, 200);
 }
@@ -82,7 +71,6 @@ function _checkLoaded(){
           S.bundles  = val.bundles||[];
           S.sales    = val.sales||[];
           S.debts    = val.debts||[];
-          S.orders   = val.orders||[];
           var ld=document.getElementById('loading-screen');
           if(ld)ld.style.display='none';
           var app=document.getElementById('main-app');
@@ -173,19 +161,6 @@ body{background:#0d1117;color:#e6edf3;font-family:'Segoe UI',Tahoma,sans-serif;d
 .log-row{padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;justify-content:space-between;align-items:center}
 .log-row:last-child{border-bottom:none}
 @media(max-width:600px){.tab{flex:0 0 auto;min-width:70px;font-size:11px}}
-.cart-bar{position:fixed;bottom:0;left:0;right:0;background:#161b22;border-top:1px solid rgba(255,255,255,.1);padding:12px 1rem;z-index:50;display:flex;align-items:center;gap:10px}
-.cart-count{background:#c0392b;color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
-.cart-total{color:#e67e22;font-weight:700;font-size:15px}
-.qty-ctrl{display:flex;align-items:center;gap:6px;justify-content:center}
-.qty-btn{width:30px;height:30px;border:none;border-radius:7px;cursor:pointer;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;transition:.15s}
-.qty-btn:active{transform:scale(.9)}
-.qty-minus{background:rgba(192,57,43,.2);color:#c0392b}
-.qty-plus{background:rgba(41,128,185,.2);color:#2980b9}
-.qty-val{font-size:15px;font-weight:700;min-width:28px;text-align:center}
-.qty-val.active{color:#27ae60}
-.pc.in-cart{border-color:#27ae60}
-.cart-item-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06)}
-.cart-item-row:last-child{border-bottom:none}
 .confirm-paid-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:300;align-items:center;justify-content:center;padding:1rem}
 .confirm-paid-overlay.open{display:flex}
 .confirm-paid-box{background:#161b22;border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:1.75rem;width:100%;max-width:320px;text-align:center}
@@ -246,7 +221,6 @@ function chkSellerPass(){
     <button class="tab active" onclick="sw('inv')">📦 المنتجات</button>
     <button class="tab" onclick="sw('ws')">🏷️ الجملة</button>
     <button class="tab" onclick="sw('bun')">🎁 العروض</button>
-    <button class="tab" onclick="sw('orders')">🔔 الطلبات</button>
     <button class="tab" onclick="sw('debt')">💳 مستحقات</button>
     <button class="tab" onclick="sw('log')">📋 السجل</button>
   </div>
@@ -264,14 +238,6 @@ function chkSellerPass(){
   <!-- العروض -->
   <div id="sec-bun" class="sec">
     <div id="bun-list"></div>
-  </div>
-
-  <!-- الطلبات -->
-  <div id="sec-orders" class="sec">
-    <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden">
-      <div style="padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-weight:600;font-size:14px">🔔 طلبات العملاء</div>
-      <div id="orders-list" style="max-height:500px;overflow-y:auto"></div>
-    </div>
   </div>
 
   <!-- المستحقات -->
@@ -306,31 +272,13 @@ function chkSellerPass(){
 </div>
 
 <div class="modal-overlay" id="modal"><div class="modal-box" id="mc"></div></div>
-
-<!-- سلة البيع -->
-<div class="modal-overlay" id="s-cart-modal">
-  <div class="modal-box">
-    <button class="mcls" onclick="closeSCart()">✕</button>
-    <h3>🛒 سلة البيع</h3>
-    <div id="s-cart-items"></div>
-    <div style="border-top:1px solid rgba(255,255,255,.07);margin-top:12px;padding-top:12px">
-      <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;margin-bottom:14px">
-        <span>الإجمالي</span>
-        <span style="color:#e67e22" id="s-cart-modal-total">0.000 ر.ع</span>
-      </div>
-      <div style="font-size:12px;color:#8b949e;margin-bottom:6px" id="s-cart-profit"></div>
-      <button class="bn bb bn-lg" onclick="checkoutCart()">💰 إتمام البيع</button>
-      <button class="bn bn-lg" style="background:rgba(255,255,255,.06);color:#ccc;margin-top:6px" onclick="clearSCart()">🗑️ مسح السلة</button>
-    </div>
-  </div>
-</div>
 <div class="confirm-overlay" id="confirm-ov"><div class="confirm-box" id="confirm-box"></div></div>
 
 <script>
 var confirmCb = null;
 
 function sw(t){
-  ['inv','ws','bun','orders','debt','log'].forEach(function(x,i){
+  ['inv','ws','bun','debt','log'].forEach(function(x,i){
     document.querySelectorAll('.tab')[i].classList.toggle('active',x===t);
     document.getElementById('sec-'+x).classList.toggle('active',x===t);
   });
@@ -453,11 +401,11 @@ function renderWS(){
         '<div><div style="font-weight:600;font-size:14px">'+w.name+'</div><div style="font-size:12px;color:#8b949e">'+(p?p.name:'منتج محذوف')+' | المخزون: <strong style="color:#27ae60">'+(p?p.qty:0)+'</strong> '+(p?p.unit:'')+'</div></div>'+
       '</div>'+
       '<div class="tiers-grid">'+tiersHtml+'</div>'+
-      '<div class="ws-sell-bar" style="margin-top:4px">'+ (cart['w-'+wi]?'<div style="font-size:11px;color:#27ae60;margin-bottom:6px;text-align:center">في السلة: '+cart['w-'+wi]+' '+( p?p.unit:'حبة')+'</div>':'')+'+
+      '<div class="ws-sell-bar">'+
         '<div><div style="font-size:11px;color:#8b949e;margin-bottom:4px">الكمية</div>'+
         '<input class="ws-qty" type="number" id="swq-'+wi+'" value="'+(w.tiers[0]?w.tiers[0].qty:1)+'" min="1" oninput="calcSWS('+wi+')" onchange="calcSWS('+wi+')"></div>'+
         '<div style="flex:1"><div style="font-size:11px;color:#8b949e">الإجمالي</div><div style="font-size:20px;font-weight:700;color:#e67e22" id="swt-'+wi+'">—</div><div style="font-size:11px" id="swp-'+wi+'"></div></div>'+
-        '<button class="bn bo" onclick="addWSToCart('+wi+')" style="padding:10px 14px;font-size:12px">+ سلة</button>'+
+        '<button class="bn bb" onclick="sellWS('+wi+')" style="padding:11px 18px;font-size:13px">💰 بيع</button>'+
       '</div>'+
     '</div>';
   }).join('');
@@ -485,18 +433,6 @@ function calcSWS(wi){
   if(wp){wp.textContent=up.toFixed(3)+' ر.ع/'+p.unit;wp.style.color='#8b949e';}
   if(tier){document.querySelectorAll('[id^="stb-'+wi+'-"]').forEach(function(el,i){el.classList.toggle('sel',w.tiers[i]&&w.tiers[i].qty===tier.qty);});}
 }
-function addWSToCart(wi){
-  var qty=parseInt(document.getElementById('swq-'+wi).value)||0;
-  if(qty<1){toast('أدخل كمية صحيحة',false);return;}
-  var key='w-'+wi;
-  cart[key]=(cart[key]||0)+qty;
-  // cap to max stock
-  var w=S.ws[wi];
-  var p=S.products.find(function(x){return x.id===w.productId;});
-  if(p&&cart[key]>p.qty)cart[key]=p.qty;
-  updSCartBar(); render(); toast('✅ أضيف للسلة');
-}
-
 function sellWS(wi){
   var w=S.ws[wi];
   var p=S.products.find(function(x){return x.id===w.productId;});
@@ -594,122 +530,6 @@ function renderDebt(){
 }
 
 var _pendingPayIdx = null;
-/* ===== سلة البيع ===== */
-function chgCart(key, idx, type, delta){
-  var maxQty = 9999;
-  if(type==='p') maxQty=S.products[idx].qty;
-  else if(type==='w'){var wp=S.products.find(function(x){return x.id===S.ws[idx].productId;});if(wp)maxQty=wp.qty;}
-  var cur=cart[key]||0;
-  var nq=Math.max(0,Math.min(cur+delta,maxQty));
-  if(nq===0)delete cart[key]; else cart[key]=nq;
-  updSCartBar(); render();
-}
-
-function getCartItems(){
-  var items=[];
-  Object.keys(cart).forEach(function(key){
-    var qty=cart[key]; if(!qty)return;
-    var parts=key.split('-'), type=parts[0], idx=parseInt(parts[1]);
-    if(type==='p'){
-      var p=S.products[idx]; if(!p)return;
-      var uc=p.costTotal/p.totalUnits;
-      items.push({key:key,name:p.name,qty:qty,price:p.sellPrice,uc:uc,total:qty*p.sellPrice,profit:qty*(p.sellPrice-uc),unit:p.unit,type:'مفرد',prodIdx:idx});
-    } else if(type==='w'){
-      var w=S.ws[idx]; if(!w)return;
-      var p2=S.products.find(function(x){return x.id===w.productId;});
-      var uc2=p2?p2.costTotal/p2.totalUnits:0;
-      var sorted=w.tiers.slice().sort(function(a,b){return b.qty-a.qty;});
-      var tier=sorted.find(function(t){return qty>=t.qty;});
-      var up=tier?tier.totalPrice/tier.qty:(p2?p2.sellPrice:0);
-      items.push({key:key,name:w.name+(p2?' ('+p2.name+')':''),qty:qty,price:up,uc:uc2,total:qty*up,profit:qty*(up-uc2),unit:p2?p2.unit:'حبة',type:'جملة',wsIdx:idx,prodId:w.productId});
-    } else if(type==='b'){
-      var b=S.bundles[idx]; if(!b)return;
-      var tc=b.items.reduce(function(s,it){var pp=S.products.find(function(x){return x.id===it.productId;});return s+(pp?it.qty*(pp.costTotal/pp.totalUnits):0);},0);
-      items.push({key:key,name:b.name,qty:qty,price:b.price,uc:tc,total:qty*b.price,profit:qty*(b.price-tc),unit:'طلب',type:'عرض',bunIdx:idx});
-    }
-  });
-  return items;
-}
-
-function updSCartBar(){
-  var items=getCartItems();
-  var count=items.reduce(function(s,i){return s+i.qty;},0);
-  var total=items.reduce(function(s,i){return s+i.total;},0);
-  var bar=document.getElementById('s-cart-bar');
-  bar.style.display=count>0?'flex':'none';
-  document.getElementById('s-cart-count').textContent=count;
-  document.getElementById('s-cart-total').textContent=total.toFixed(3)+' ر.ع';
-}
-
-function openSCart(){
-  document.getElementById('s-cart-modal').classList.add('open');
-  renderSCartModal();
-}
-function closeSCart(){ document.getElementById('s-cart-modal').classList.remove('open'); }
-
-function renderSCartModal(){
-  var items=getCartItems();
-  var total=items.reduce(function(s,i){return s+i.total;},0);
-  var profit=items.reduce(function(s,i){return s+i.profit;},0);
-  var html=items.map(function(it){
-    return '<div class="cart-item-row">'+
-      '<div style="flex:1">'+
-        '<div style="font-weight:500;font-size:13px">'+it.name+'</div>'+
-        '<div style="font-size:11px;color:#8b949e">'+it.qty+' '+it.unit+' × '+it.price.toFixed(3)+' ر.ع</div>'+
-      '</div>'+
-      '<div style="display:flex;align-items:center;gap:8px">'+
-        '<span style="color:#e67e22;font-weight:700">'+it.total.toFixed(3)+'</span>'+
-        '<button onclick="removeCartItem(''+it.key+'')" style="background:rgba(192,57,43,.2);color:#c0392b;border:none;border-radius:5px;padding:3px 7px;cursor:pointer">✕</button>'+
-      '</div>'+
-    '</div>';
-  }).join('');
-  document.getElementById('s-cart-items').innerHTML=html||'<div style="color:#8b949e;text-align:center;padding:1rem">السلة فارغة</div>';
-  document.getElementById('s-cart-modal-total').textContent=total.toFixed(3)+' ر.ع';
-  document.getElementById('s-cart-profit').textContent='الربح المتوقع: '+profit.toFixed(3)+' ر.ع';
-}
-
-function removeCartItem(key){ delete cart[key]; updSCartBar(); renderSCartModal(); render(); }
-function clearSCart(){ cart={}; updSCartBar(); closeSCart(); render(); }
-
-function checkoutCart(){
-  var items=getCartItems();
-  if(!items.length){toast('السلة فارغة',false);return;}
-  // validate stock
-  for(var i=0;i<items.length;i++){
-    var it=items[i];
-    if(it.type==='مفرد'){
-      var p=S.products[it.prodIdx];
-      if(p&&it.qty>p.qty){toast('مخزون غير كافٍ: '+p.name,false);return;}
-    }
-  }
-  showConfirm({
-    title:'تأكيد البيع',
-    items:items.map(function(it){return{label:it.name,val:it.qty+' × '+it.price.toFixed(3)+' = '+it.total.toFixed(3)+' ر.ع'};}),
-    total:items.reduce(function(s,i){return s+i.total;},0),
-    profit:items.reduce(function(s,i){return s+i.profit;},0)
-  },function(payNow){
-    var now=new Date().toLocaleString('ar-SA');
-    items.forEach(function(it){
-      // deduct stock
-      if(it.type==='مفرد'&&it.prodIdx!==undefined){S.products[it.prodIdx].qty-=it.qty;}
-      else if(it.type==='جملة'&&it.wsIdx!==undefined){
-        var pp=S.products.find(function(x){return x.id===it.prodId;});
-        if(pp)pp.qty-=it.qty;
-      }else if(it.type==='عرض'&&it.bunIdx!==undefined){
-        S.bundles[it.bunIdx].items.forEach(function(bi){
-          var pp=S.products.find(function(x){return x.id===bi.productId;});
-          if(pp)pp.qty-=bi.qty*it.qty;
-        });
-      }
-      // record sale
-      recordSale({type:it.type,name:it.name,qty:it.qty,price:it.price,cost:it.uc,revenue:it.total,profit:it.profit,time:now},payNow);
-    });
-    cart={};
-    fbSave(); updSCartBar(); closeSCart(); render();
-    toast('✅ تم البيع بنجاح');
-  });
-}
-
 function sellerMarkPaid(i){
   var d = S.debts[i];
   _pendingPayIdx = i;
@@ -735,46 +555,7 @@ function confirmPayNo(){
   document.getElementById('pay-confirm-ov').classList.remove('open');
   _pendingPayIdx = null;
 }
-function renderOrders(){
-  var list=document.getElementById('orders-list');
-  var orders = S.orders||[];
-  if(!orders.length){list.innerHTML='<div style="color:#8b949e;text-align:center;padding:2rem;font-size:13px">لا توجد طلبات</div>';return;}
-  list.innerHTML=orders.map(function(o,oi){
-    var itemsHtml=o.items.map(function(it){
-      var meta;
-      if(it.kind==='wholesale') meta=it.qty+' × ('+it.tierQty+' '+it.unit+' بـ '+it.tierPrice.toFixed(3)+' ر.ع)';
-      else if(it.kind==='bundle') meta=it.qty+' × '+it.price.toFixed(3)+' ر.ع';
-      else meta=it.qty+' '+it.unit+' × '+it.price.toFixed(3)+' ر.ع';
-      return '<div style="font-size:12px;color:#ccc;padding:3px 0">• '+it.name+' — '+meta+'</div>';
-    }).join('');
-    var statusBadge = o.status==='جديد'?'<span class="badge bg-r">جديد</span>':o.status==='قيد التجهيز'?'<span class="badge bg-o">قيد التجهيز</span>':'<span class="badge bg-g">تم التسليم</span>';
-    return '<div class="log-row" style="flex-direction:column;align-items:stretch;gap:8px">'+
-      '<div style="display:flex;justify-content:space-between;align-items:flex-start">'+
-        '<div>'+
-          '<div style="font-weight:600;font-size:14px">'+o.customer+(o.phone?' — <span style="direction:ltr;display:inline-block">'+o.phone+'</span>':'')+' '+statusBadge+'</div>'+
-          '<div style="font-size:11px;color:#8b949e">'+o.time+'</div>'+
-        '</div>'+
-        '<div style="font-size:16px;font-weight:700;color:#e67e22">'+o.total.toFixed(3)+' ر.ع</div>'+
-      '</div>'+
-      '<div style="background:rgba(255,255,255,.03);border-radius:8px;padding:8px 10px">'+itemsHtml+'</div>'+
-      '<div style="display:flex;gap:6px">'+
-        (o.status!=='قيد التجهيز'&&o.status!=='تم التسليم'?'<button class="bn bo bn-sm" onclick="setOrderStatus('+oi+',\'قيد التجهيز\')">🔄 قيد التجهيز</button>':'')+
-        (o.status!=='تم التسليم'?'<button class="bn bg2 bn-sm" onclick="setOrderStatus('+oi+',\'تم التسليم\')">✅ تم التسليم</button>':'')+
-        '<button class="bn br bn-sm" onclick="deleteOrder('+oi+')">🗑️ حذف</button>'+
-      '</div>'+
-    '</div>';
-  }).join('');
-}
-function setOrderStatus(oi, status){
-  S.orders[oi].status = status;
-  fbSave(); render(); toast('✅ تم تحديث حالة الطلب');
-}
-function deleteOrder(oi){
-  if(!confirm('حذف هذا الطلب؟'))return;
-  S.orders.splice(oi,1);
-  fbSave(); render();
-}
-function render(){renderInv();renderWS();renderBundles();renderLog();renderDebt();renderOrders();}
+function render(){renderInv();renderWS();renderBundles();renderLog();renderDebt();}
 </script>
 </body>
 </html>
