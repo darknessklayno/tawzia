@@ -46,7 +46,7 @@ _dbRef.on('value', function(snap){
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0d1117;color:#e6edf3;font-family:'Segoe UI',Tahoma,sans-serif;direction:rtl;min-height:100vh}
-.app{max-width:980px;margin:0 auto;padding:1rem}
+.app{max-width:980px;margin:0 auto;padding:1rem;padding-bottom:90px}
 .hdr{display:flex;align-items:center;gap:12px;margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1px solid rgba(255,255,255,.08);min-height:70px}
 .hdr-logo{width:46px;height:46px;background:#c0392b;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0}
 .hdr h1{font-size:20px;font-weight:700;color:#fff;letter-spacing:.5px}
@@ -199,6 +199,11 @@ if('serviceWorker' in navigator){
 
 <!-- المحتوى الرئيسي -->
 <div id="main-content" style="display:none">
+<button class="cart-bubble" onclick="openCart()" id="cart-bubble">
+  🛒
+  <div class="cart-count" id="cart-count">0</div>
+</button>
+
 
 <div class="app">
   <div class="hdr">
@@ -1011,6 +1016,75 @@ function delSale(i){
   S.sales.splice(i,1);save();render();
 }
 function clearLog(){if(!confirm('مسح كل السجل؟'))return;S.sales=[];save();render();}
+
+
+var cart=[];
+function addToCart(type,idx){
+  if(type==='product'){
+    var p=S.products[idx];
+    var qty=parseInt(document.getElementById('si-'+idx).value)||1;
+    if(qty>p.qty){toast('الكمية أكبر من المخزون!',false);return;}
+    var ex=cart.find(function(c){return c.type==='product'&&c.idx===idx;});
+    if(ex){if(ex.qty+qty>p.qty){toast('الكمية أكبر من المخزون!',false);return;}ex.qty+=qty;ex.revenue=ex.qty*p.sellPrice;}
+    else{cart.push({type:'product',idx:idx,name:p.name,qty:qty,price:p.sellPrice,revenue:qty*p.sellPrice,unit:p.unit,cost:p.costTotal/p.totalUnits});}
+  } else if(type==='ws'){
+    var w=S.ws[idx];var pw=S.products.find(function(x){return x.id===w.productId;});
+    var qty2=parseInt(document.getElementById('swq-'+idx).value)||0;
+    if(!pw||qty2<1){toast('أدخل كمية صحيحة',false);return;}
+    if(qty2>pw.qty){toast('المخزون غير كافِ',false);return;}
+    var sorted=w.tiers.slice().sort(function(a,b){return b.qty-a.qty;});
+    var tier=sorted.find(function(t){return qty2>=t.qty;});
+    if(!tier){toast('الكمية أقل من أدنى شريحة',false);return;}
+    var up=tier.totalPrice/tier.qty;
+    cart.push({type:'ws',idx:idx,name:w.name+'('+pw.name+')',qty:qty2,price:up,revenue:qty2*up,unit:pw.unit,cost:pw.costTotal/pw.totalUnits});
+  } else if(type==='bundle'){
+    var b=S.bundles[idx];
+    var ok=b.items.every(function(it){var pb=S.products.find(function(x){return x.id===it.productId;});return pb&&pb.qty>=it.qty;});
+    if(!ok){toast('المخزون غير كافِ',false);return;}
+    var tc=b.items.reduce(function(s,it){var pb=S.products.find(function(x){return x.id===it.productId;});return s+(pb?it.qty*(pb.costTotal/pb.totalUnits):0);},0);
+    cart.push({type:'bundle',idx:idx,name:b.name,qty:1,price:b.price,revenue:b.price,unit:'عرض',cost:tc});
+  }
+  updateCartBubble();toast('✅ أضيف للسلة');
+}
+function updateCartBubble(){
+  var total=cart.reduce(function(s,c){return s+c.qty;},0);
+  var cnt=document.getElementById('cart-count');
+  if(cnt){cnt.textContent=total;cnt.style.display=total>0?'flex':'none';}
+}
+function openCart(){
+  if(!cart.length){toast('السلة فارغة',false);return;}
+  var total=cart.reduce(function(s,c){return s+c.revenue;},0);
+  var rows=cart.map(function(c,i){
+    return '<div class="cart-item-row"><div style="flex:1"><div style="font-weight:500;font-size:13px">'+c.name+'</div>'+
+    '<div style="font-size:11px;color:#8b949e">'+c.qty+' '+c.unit+' × '+c.price.toFixed(3)+' ر.ع</div></div>'+
+    '<div style="display:flex;align-items:center;gap:8px"><span style="font-weight:600;color:#e67e22">'+c.revenue.toFixed(3)+'</span>'+
+    '<button onclick="removeFromCart('+i+')" style="background:rgba(192,57,43,.2);border:none;color:#e74c3c;border-radius:5px;padding:3px 7px;cursor:pointer">✕</button></div></div>';
+  }).join('');
+  openModal('<h3>🛒 السلة</h3><div style="margin-bottom:14px">'+rows+'</div>'+
+    '<div style="display:flex;justify-content:space-between;padding:10px 0;border-top:1px solid rgba(255,255,255,.1);margin-bottom:14px">'+
+    '<span style="color:#8b949e">الإجمالي</span>'+
+    '<span style="font-size:22px;font-weight:700;color:#e67e22">'+total.toFixed(3)+' ر.ع</span></div>'+
+    '<div style="display:flex;gap:8px">'+
+    '<button onclick="checkoutCart()" class="bn bg2" style="flex:1;padding:12px;font-size:14px;border-radius:9px">💰 إتمام البيع</button>'+
+    '<button onclick="closeModal()" class="bn" style="flex:1;padding:12px;font-size:14px;border-radius:9px;background:rgba(255,255,255,.07);color:#ccc">إلغاء</button></div>');
+}
+function removeFromCart(i){cart.splice(i,1);updateCartBubble();if(cart.length)openCart();else closeModal();}
+function checkoutCart(){
+  closeModal();
+  var total=cart.reduce(function(s,c){return s+c.revenue;},0);
+  var items=cart.map(function(c){return{label:c.name,val:c.qty+' '+c.unit};});
+  showConfirm({title:'فاتورة السلة',items:items,total:total},function(payNow){
+    cart.forEach(function(c){
+      if(c.type==='product'){S.products[c.idx].qty-=c.qty;}
+      else if(c.type==='ws'){var w=S.ws[c.idx];var p=S.products.find(function(x){return x.id===w.productId;});if(p)p.qty-=c.qty;}
+      else if(c.type==='bundle'){var b=S.bundles[c.idx];b.items.forEach(function(it){var p=S.products.find(function(x){return x.id===it.productId;});if(p)p.qty-=it.qty;});}
+    });
+    var nm=cart.map(function(c){return c.name;}).join(' + ');
+    var tc=cart.reduce(function(s,c){return s+c.qty*c.cost;},0);
+    recordSaleAndDebt({type:'سلة',name:nm,qty:1,price:total,cost:tc,revenue:total,profit:total-tc,time:new Date().toLocaleString('ar-SA')},payNow);
+    cart=[];updateCartBubble();save();render();toast('✅ تم البيع');
+  });
+}
 
 function render(){renderInv();renderWS();renderBundles();renderDebts();renderProfits();}
 </script>
